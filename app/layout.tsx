@@ -1,24 +1,25 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Space_Grotesk, DM_Sans } from "next/font/google"
+import { Inter } from "next/font/google"
 import "./globals.css"
 
-const spaceGrotesk = Space_Grotesk({
+const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-space-grotesk",
-})
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-dm-sans",
+  variable: "--font-inter",
+  preload: true,
+  fallback: ["system-ui", "arial"],
 })
 
 export const metadata: Metadata = {
-  title: "Salon Management - Elevate Your Salon Experience",
-  description: "Streamline management and enhance client relationships with our all-in-one salon solution.",
-  generator: "v0.app",
+  title: "HUSN - Beauty Salon Management Platform",
+  description:
+    "Streamline operations, delight clients, and grow your salon with our comprehensive management platform designed for modern beauty professionals.",
+  generator: "Next.js",
+  keywords: "salon management, beauty business, appointment booking, inventory management",
+  authors: [{ name: "HUSN Team" }],
+  viewport: "width=device-width, initial-scale=1",
+  robots: "index, follow",
 }
 
 export default function RootLayout({
@@ -27,8 +28,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${dmSans.variable} antialiased`}>
-      <body>{children}</body>
+    <html lang="en" className={`${inter.variable} antialiased`}>
+      <head>
+        <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body className="font-sans">{children}</body>
     </html>
   )
 }

@@ -4,7 +4,10 @@ export interface BillItem {
   packageId: ObjectId
   packageName: string
   packagePrice: number
-  packageType: "Basic" | "Premium"
+  gender?: "men" | "women"
+  serviceLevel?: "basic" | "advance"
+  // Legacy field for backward compatibility
+  packageType?: "Basic" | "Premium"
 }
 
 export interface ProductSale {

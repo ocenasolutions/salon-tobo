@@ -1,13 +1,15 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Loader2,
   Plus,
@@ -21,11 +23,14 @@ import {
   Banknote,
   Smartphone,
   Edit3,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 
 interface Bill {
   _id: string
   items: { packageId: string }[]
+  services?: { packageId: string; gender: string; serviceLevel: string; price: number }[]
   clientName?: string
   customerMobile?: string
   attendantBy?: string
@@ -48,7 +53,24 @@ interface Package {
   _id: string
   name: string
   description: string
-  type: string
+  menPricing?: {
+    basic?: number
+    advance?: number
+  }
+  womenPricing?: {
+    basic?: number
+    advance?: number
+  }
+  // Legacy fields for backward compatibility
+  type?: string
+  price?: number
+}
+
+interface SelectedService {
+  packageId: string
+  packageName: string
+  gender: "men" | "women"
+  serviceLevel: "basic" | "advance"
   price: number
 }
 
@@ -91,7 +113,11 @@ interface InventoryProductSale {
 }
 
 export default function EditBillDialog({ open, onOpenChange, bill, packages, onSuccess }: EditBillDialogProps) {
-  const [selectedPackages, setSelectedPackages] = useState<string[]>([])
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([])
+  const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set())
+  const [genderFilter, setGenderFilter] = useState<"all" | "men" | "women">("all")
+  const [levelFilter, setLevelFilter] = useState<"all" | "basic" | "advance">("all")
+
   const [clientName, setClientName] = useState("")
   const [customerMobile, setCustomerMobile] = useState("")
   const [attendantBy, setAttendantBy] = useState("")
@@ -163,19 +189,75 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
   }, [inventory, productSearchQuery])
 
   const filteredPackages = useMemo(() => {
-    if (!serviceSearchQuery.trim()) return packages
-    const query = serviceSearchQuery.toLowerCase().trim()
-    return packages.filter(
-      (pkg) =>
-        pkg.name.toLowerCase().includes(query) ||
-        pkg.description.toLowerCase().includes(query) ||
-        pkg.type.toLowerCase().includes(query),
-    )
-  }, [packages, serviceSearchQuery])
+    const filtered = packages.filter((pkg) => {
+      // Search filter
+      if (serviceSearchQuery.trim()) {
+        const query = serviceSearchQuery.toLowerCase()
+        if (!pkg.name.toLowerCase().includes(query) && !pkg.description?.toLowerCase().includes(query)) {
+          return false
+        }
+      }
+
+      // Gender filter
+      if (genderFilter !== "all") {
+        const hasGenderPricing =
+          genderFilter === "men"
+            ? pkg.menPricing?.basic || pkg.menPricing?.advance
+            : pkg.womenPricing?.basic || pkg.womenPricing?.advance
+
+        if (!hasGenderPricing && !pkg.price) return false // Legacy support
+      }
+
+      return true
+    })
+
+    return filtered
+  }, [packages, serviceSearchQuery, genderFilter, levelFilter])
 
   useEffect(() => {
     if (bill) {
-      setSelectedPackages(bill.items.map((item) => item.packageId.toString()))
+      // Handle new service structure
+      if (bill.services && Array.isArray(bill.services)) {
+        const loadedServices = bill.services.map((service) => {
+          const pkg = packages.find((p) => p._id === service.packageId)
+          return {
+            packageId: service.packageId,
+            packageName: pkg?.name || "Unknown Service",
+            gender: service.gender as "men" | "women",
+            serviceLevel: service.serviceLevel as "basic" | "advance",
+            price: service.price,
+          }
+        })
+        setSelectedServices(loadedServices)
+      }
+      // Handle legacy structure
+      else if (bill.items && Array.isArray(bill.items)) {
+        const loadedServices = bill.items.map((item) => {
+          const pkg = packages.find((p) => p._id === item.packageId)
+          let price = 0
+          if (pkg) {
+            // Try to get price from new structure first
+            if (pkg.menPricing?.basic) {
+              price = pkg.menPricing.basic // Default to men's basic price for legacy items
+            } else if (pkg.womenPricing?.basic) {
+              price = pkg.womenPricing.basic // Fallback to women's basic price
+            } else if (pkg.price) {
+              price = pkg.price // Fallback to old price structure if it exists
+            }
+          }
+
+          return {
+            packageId: item.packageId,
+            packageName: pkg?.name || "Unknown Service",
+            gender: "men" as "men" | "women", // Default fallback
+            serviceLevel: "basic" as "basic" | "advance", // Default fallback
+            price: price,
+          }
+        })
+        setSelectedServices(loadedServices)
+      }
+
+      // ... existing code for other fields ...
       setClientName(bill.clientName || "")
       setCustomerMobile(bill.customerMobile || "")
       setAttendantBy(bill.attendantBy || "")
@@ -206,19 +288,52 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
             Number(sale.pricePerUnit || sale.price || 0) * Number(sale.quantitySold || sale.quantity || 1),
         }))
         setInventoryProductSales(loadedInventoryProductSales)
-        console.log("[v0] Loaded existing inventory product sales:", loadedInventoryProductSales)
       }
 
       if (bill.upiAmount > 0) setPaymentMethod("UPI")
       else if (bill.cardAmount > 0) setPaymentMethod("CARD")
       else setPaymentMethod("CASH")
     }
-  }, [bill])
+  }, [bill, packages])
 
-  const handlePackageToggle = (packageId: string) => {
-    setSelectedPackages((prev) =>
-      prev.includes(packageId) ? prev.filter((id) => id !== packageId) : [...prev, packageId],
-    )
+  const handleServiceSelect = (
+    packageId: string,
+    packageName: string,
+    gender: "men" | "women",
+    serviceLevel: "basic" | "advance",
+    price: number,
+  ) => {
+    const newService: SelectedService = {
+      packageId,
+      packageName,
+      gender,
+      serviceLevel,
+      price,
+    }
+
+    setSelectedServices((prev) => [...prev, newService])
+    setError("") // Clear any existing errors
+  }
+
+  const handleServiceRemove = (index: number) => {
+    setSelectedServices((prev) => prev.filter((_, i) => i !== index))
+    if (selectedServices.length <= 1) {
+      setError("At least one service must be selected")
+    } else {
+      setError("")
+    }
+  }
+
+  const togglePackageExpansion = (packageId: string) => {
+    setExpandedPackages((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(packageId)) {
+        newSet.delete(packageId)
+      } else {
+        newSet.add(packageId)
+      }
+      return newSet
+    })
   }
 
   const addProductSale = () => {
@@ -310,9 +425,7 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
   }
 
   const calculateServicesTotal = () => {
-    return packages
-      .filter((pkg) => selectedPackages.includes(pkg._id!.toString()))
-      .reduce((sum, pkg) => sum + pkg.price, 0)
+    return selectedServices.reduce((sum, service) => sum + service.price, 0)
   }
 
   const calculateProductSalesTotal = () => {
@@ -343,55 +456,39 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
     )
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
     setError("")
 
-    if (selectedPackages.length === 0) {
-      setError("Please select at least one service")
+    if (selectedServices.length === 0) {
+      setError("At least one service must be selected")
+      setLoading(false)
       return
     }
-
-    if (!attendantBy.trim()) {
-      setError("Attendant name is required")
-      return
-    }
-
-    setLoading(true)
 
     try {
-      const token = localStorage.getItem("auth-token")
-
-      const paymentData = {
-        upiAmount: paymentMethod === "UPI" ? calculateGrandTotal() : 0,
-        cardAmount: paymentMethod === "CARD" ? calculateGrandTotal() : 0,
-        cashAmount: paymentMethod === "CASH" ? calculateGrandTotal() : 0,
-      }
-
       const billData = {
-        packageIds: selectedPackages,
-        clientName: clientName.trim() || "Walk-in Customer",
-        customerMobile: customerMobile.trim() || undefined,
-        ...paymentData,
-        attendantBy: attendantBy.trim(),
-        paymentMethod,
-        productSales: productSales,
-        inventoryProductSales: inventoryProductSales.map((sale) => ({
-          inventoryId: sale.inventoryId,
-          quantitySold: sale.quantitySold,
-          productName: sale.productName,
-          brandName: sale.brandName,
-          pricePerUnit: sale.pricePerUnit,
-          totalPrice: sale.totalPrice,
+        clientName,
+        customerMobile,
+        attendantBy,
+        services: selectedServices.map((service) => ({
+          packageId: service.packageId,
+          gender: service.gender,
+          serviceLevel: service.serviceLevel,
+          price: service.price,
         })),
-        expenditures: expenditures.map((exp) => ({
-          name: exp.name,
-          amount: exp.amount,
-          description: exp.description || "",
-        })),
+        productSales,
+        inventoryProductSales,
+        expenditures,
+        cashAmount: Number.parseFloat(bill.cashAmount.toString()) || 0,
+        cardAmount: Number.parseFloat(bill.cardAmount.toString()) || 0,
+        upiAmount: Number.parseFloat(bill.upiAmount.toString()) || 0,
       }
 
       console.log("[v0] Updating bill with data:", billData)
 
+      const token = localStorage.getItem("auth-token")
       const response = await fetch(`/api/bills/${bill._id}`, {
         method: "PUT",
         headers: {
@@ -406,12 +503,8 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
         throw new Error(errorData.error || "Failed to update bill")
       }
 
-      const result = await response.json()
-      console.log("[v0] Bill updated successfully:", result)
-
       onSuccess()
     } catch (err) {
-      console.error("[v0] Error updating bill:", err)
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
@@ -530,8 +623,38 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-blue-700">Services</h3>
                   <Badge variant="outline" className="bg-blue-50">
-                    {selectedPackages.length} selected
+                    {selectedServices.length} selected
                   </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={genderFilter}
+                    onValueChange={(value: "all" | "men" | "women") => setGenderFilter(value)}
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="All Genders" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Genders</SelectItem>
+                      <SelectItem value="men">Men</SelectItem>
+                      <SelectItem value="women">Women</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={levelFilter}
+                    onValueChange={(value: "all" | "basic" | "advance") => setLevelFilter(value)}
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="All Levels" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Levels</SelectItem>
+                      <SelectItem value="basic">Basic</SelectItem>
+                      <SelectItem value="advance">Advance</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="relative">
@@ -546,31 +669,153 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
                 </div>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {filteredPackages.map((pkg) => (
-                    <div
-                      key={pkg._id}
-                      className="flex items-center p-3 border rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                      onClick={() => handlePackageToggle(pkg._id)}
-                    >
-                      <Checkbox
-                        checked={selectedPackages.includes(pkg._id)}
-                        onChange={() => handlePackageToggle(pkg._id)}
-                        disabled={loading}
-                        className="mr-3"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{pkg.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{pkg.description}</div>
+                  {filteredPackages.map((pkg) => {
+                    const isExpanded = expandedPackages.has(pkg._id)
+                    const hasNewPricing = pkg.menPricing || pkg.womenPricing
+
+                    return (
+                      <div key={pkg._id} className="border rounded-lg overflow-hidden">
+                        <div
+                          className="flex items-center p-3 hover:bg-blue-50 transition-colors cursor-pointer"
+                          onClick={() => togglePackageExpansion(pkg._id)}
+                        >
+                          {hasNewPricing ? (
+                            isExpanded ? (
+                              <ChevronDown className="h-4 w-4 mr-2" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 mr-2" />
+                            )
+                          ) : null}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{pkg.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{pkg.description}</div>
+                          </div>
+                          {!hasNewPricing && pkg.price && (
+                            <div className="text-right">
+                              <div className="font-semibold text-blue-600">₹{pkg.price}</div>
+                              <Badge variant="secondary" className="text-xs">
+                                {pkg.type}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {isExpanded && hasNewPricing && (
+                          <div className="border-t bg-gray-50 p-3 space-y-2">
+                            {pkg.menPricing && (pkg.menPricing.basic || pkg.menPricing.advance) && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-blue-700">Men's Services</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {pkg.menPricing.basic && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleServiceSelect(pkg._id, pkg.name, "men", "basic", pkg.menPricing!.basic!)
+                                      }
+                                      className="text-xs h-8"
+                                    >
+                                      Basic - ₹{pkg.menPricing.basic}
+                                    </Button>
+                                  )}
+                                  {pkg.menPricing.advance && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleServiceSelect(
+                                          pkg._id,
+                                          pkg.name,
+                                          "men",
+                                          "advance",
+                                          pkg.menPricing!.advance!,
+                                        )
+                                      }
+                                      className="text-xs h-8"
+                                    >
+                                      Advance - ₹{pkg.menPricing.advance}
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {pkg.womenPricing && (pkg.womenPricing.basic || pkg.womenPricing.advance) && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-pink-700">Women's Services</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {pkg.womenPricing.basic && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleServiceSelect(
+                                          pkg._id,
+                                          pkg.name,
+                                          "women",
+                                          "basic",
+                                          pkg.womenPricing!.basic!,
+                                        )
+                                      }
+                                      className="text-xs h-8"
+                                    >
+                                      Basic - ₹{pkg.womenPricing.basic}
+                                    </Button>
+                                  )}
+                                  {pkg.womenPricing.advance && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleServiceSelect(
+                                          pkg._id,
+                                          pkg.name,
+                                          "women",
+                                          "advance",
+                                          pkg.womenPricing!.advance!,
+                                        )
+                                      }
+                                      className="text-xs h-8"
+                                    >
+                                      Advance - ₹{pkg.womenPricing.advance}
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-blue-600">₹{pkg.price}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          {pkg.type}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
+
+                {selectedServices.length > 0 && (
+                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg">
+                    <div className="text-sm font-medium text-blue-700">Selected Services:</div>
+                    {selectedServices.map((service, index) => (
+                      <div key={index} className="flex justify-between items-center p-2 bg-white rounded border">
+                        <div className="flex-1">
+                          <div className="font-medium text-xs">{service.packageName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {service.gender} - {service.serviceLevel}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-blue-600">₹{service.price}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleServiceRemove(index)}
+                            className="h-6 w-6 p-0 text-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Products Column */}
@@ -861,7 +1106,7 @@ export default function EditBillDialog({ open, onOpenChange, bill, packages, onS
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={loading || selectedPackages.length === 0 || !attendantBy.trim()}
+                disabled={loading || selectedServices.length === 0 || !attendantBy.trim()}
                 className="flex-1 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
               >
                 {loading ? (

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, Edit, Plus, Search, Loader2 } from "lucide-react"
+import { Trash2, Edit, Plus, Search, Loader2, Filter } from "lucide-react"
 import DashboardLayout from "@/components/dashboard-layout"
 import { useToast } from "@/hooks/use-toast"
 
@@ -28,10 +28,13 @@ interface InventoryItem {
   createdAt?: string
 }
 
+const INVENTORY_CATEGORIES = ["Nails", "Hair", "Body", "Face", "Wax", "Other"] as const
+
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([])
   const [isAddingItem, setIsAddingItem] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("All")
   const [editingItem, setEditingItem] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -231,16 +234,25 @@ export default function InventoryPage() {
     }
   }
 
-  const filteredItems = items.filter(
-    (item) =>
+  const filteredItems = items.filter((item) => {
+    const matchesSearch =
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.brandName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      item.category.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesCategory = selectedCategoryFilter === "All" || item.category === selectedCategoryFilter
+
+    return matchesSearch && matchesCategory
+  })
 
   const totalValue = items.reduce((sum, item) => sum + item.total, 0)
   const paidValue = items.filter((item) => item.paymentStatus === "Paid").reduce((sum, item) => sum + item.total, 0)
   const unpaidValue = totalValue - paidValue
+
+  const getCategoryCount = (category: string) => {
+    if (category === "All") return items.length
+    return items.filter((item) => item.category === category).length
+  }
 
   if (isLoading) {
     return (
@@ -322,13 +334,22 @@ export default function InventoryPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
-                    <Input
-                      id="category"
+                    <Select
                       value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="Product category (e.g., Hair Care, Skin Care)"
+                      onValueChange={(value) => setFormData({ ...formData, category: value })}
                       required
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INVENTORY_CATEGORIES.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="shadesCode">Shades Code</Label>
@@ -444,6 +465,40 @@ export default function InventoryPage() {
           </Card>
         )}
 
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">Filter by Category:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={selectedCategoryFilter === "All" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategoryFilter("All")}
+              className="flex items-center gap-2"
+            >
+              All
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {getCategoryCount("All")}
+              </Badge>
+            </Button>
+            {INVENTORY_CATEGORIES.map((category) => (
+              <Button
+                key={category}
+                variant={selectedCategoryFilter === category ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategoryFilter(category)}
+                className="flex items-center gap-2"
+              >
+                {category}
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {getCategoryCount(category)}
+                </Badge>
+              </Button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -465,8 +520,8 @@ export default function InventoryPage() {
             <Card>
               <CardContent className="py-8 text-center">
                 <p className="text-muted-foreground">
-                  {searchTerm
-                    ? "No products found matching your search."
+                  {searchTerm || selectedCategoryFilter !== "All"
+                    ? "No products found matching your filters."
                     : "No products added yet. Click 'Add Product' to get started."}
                 </p>
               </CardContent>

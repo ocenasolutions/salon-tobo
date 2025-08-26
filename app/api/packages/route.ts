@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = decoded.userId
-    // </CHANGE>
 
     const db = await getDatabase()
     const packagesCollection = db.collection<Package>("packages")
@@ -53,21 +52,36 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = decoded.userId
-    // </CHANGE>
 
-    const { name, description, price, type } = await request.json()
+    const { name, description, menPricing, womenPricing } = await request.json()
 
     // Validation
-    if (!name || !description || !price || !type) {
-      return NextResponse.json({ error: "All fields are required" }, { status: 400 })
+    if (!name || !description) {
+      return NextResponse.json({ error: "Package name and description are required" }, { status: 400 })
     }
 
-    if (typeof price !== "number" || price <= 0) {
-      return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 })
+    if (!menPricing && !womenPricing) {
+      return NextResponse.json({ error: "Please provide pricing for at least one gender" }, { status: 400 })
     }
 
-    if (!["Basic", "Premium"].includes(type)) {
-      return NextResponse.json({ error: "Type must be Basic or Premium" }, { status: 400 })
+    // Validate men's pricing if provided
+    if (menPricing) {
+      if (menPricing.basic && (typeof menPricing.basic !== "number" || menPricing.basic <= 0)) {
+        return NextResponse.json({ error: "Men's basic price must be a positive number" }, { status: 400 })
+      }
+      if (menPricing.advance && (typeof menPricing.advance !== "number" || menPricing.advance <= 0)) {
+        return NextResponse.json({ error: "Men's advance price must be a positive number" }, { status: 400 })
+      }
+    }
+
+    // Validate women's pricing if provided
+    if (womenPricing) {
+      if (womenPricing.basic && (typeof womenPricing.basic !== "number" || womenPricing.basic <= 0)) {
+        return NextResponse.json({ error: "Women's basic price must be a positive number" }, { status: 400 })
+      }
+      if (womenPricing.advance && (typeof womenPricing.advance !== "number" || womenPricing.advance <= 0)) {
+        return NextResponse.json({ error: "Women's advance price must be a positive number" }, { status: 400 })
+      }
     }
 
     const db = await getDatabase()
@@ -76,8 +90,8 @@ export async function POST(request: NextRequest) {
     const newPackage: Package = {
       name: name.trim(),
       description: description.trim(),
-      price: Number(price),
-      type,
+      menPricing: menPricing || undefined,
+      womenPricing: womenPricing || undefined,
       userId: new ObjectId(userId),
       createdAt: new Date(),
       updatedAt: new Date(),

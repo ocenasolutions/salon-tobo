@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const {
-      packageIds,
+      services, // Updated to use 'services' to match frontend payload
       clientName,
       customerMobile,
       upiAmount,
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       expenditures,
     } = await request.json()
 
-    if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
+    if (!services || !Array.isArray(services) || services.length === 0) {
       return NextResponse.json({ error: "At least one service must be selected" }, { status: 400 })
     }
 
@@ -81,6 +81,8 @@ export async function POST(request: NextRequest) {
     const billsCollection = db.collection<Bill>("bills")
     const inventoryCollection = db.collection("inventory")
 
+    const packageIds = [...new Set(services.map((service: any) => service.packageId))]
+
     const packages = await packagesCollection
       .find({
         _id: { $in: packageIds.map((id: string) => new ObjectId(id)) },
@@ -88,16 +90,21 @@ export async function POST(request: NextRequest) {
       })
       .toArray()
 
-    if (packages.length !== packageIds.length) {
-      return NextResponse.json({ error: "Some services not found" }, { status: 400 })
+    if (packages.length === 0) {
+      return NextResponse.json({ error: "No valid services found" }, { status: 400 })
     }
 
-    const billItems: BillItem[] = packages.map((pkg) => ({
-      packageId: pkg._id!,
-      packageName: pkg.name,
-      packagePrice: pkg.price,
-      packageType: pkg.type,
-    }))
+    const billItems: BillItem[] = services.map((service: any) => {
+      const pkg = packages.find((p) => p._id!.toString() === service.packageId)
+      return {
+        packageId: new ObjectId(service.packageId),
+        packageName: pkg?.name || "Unknown Service", // Use package name from database
+        packagePrice: service.price,
+        packageType: service.serviceLevel, // Updated to use 'serviceLevel' from payload
+        gender: service.gender,
+        serviceDetails: `${service.gender} - ${service.serviceLevel}`, // Updated field name
+      }
+    })
 
     let productSalesTotal = 0
     const processedProductSales: ProductSale[] = []
@@ -175,27 +182,29 @@ export async function POST(request: NextRequest) {
     const result = await billsCollection.insertOne(newBill)
 
     // Determine payment method
-    let paymentMethod = 'CASH'
-    if (upiAmount > 0) paymentMethod = 'UPI'
-    else if (cardAmount > 0) paymentMethod = 'CARD'
+    let paymentMethod = "CASH"
+    if (upiAmount > 0) paymentMethod = "UPI"
+    else if (cardAmount > 0) paymentMethod = "CARD"
 
-    // Prepare data for Google Sheets
     const sheetsData = {
       clientName: processedClientName,
       customerMobile: customerMobile?.trim(),
       attendantBy: attendantBy.trim(),
       totalAmount,
-      services: packages.map(pkg => pkg.name),
+      services: services.map((service: any) => {
+        const pkg = packages.find((p) => p._id!.toString() === service.packageId)
+        return `${pkg?.name || "Unknown Service"} (${service.gender} - ${service.serviceLevel})`
+      }),
       paymentMethod,
-      createdAt: new Date()
+      createdAt: new Date(),
     }
 
     // Add to Google Sheets (non-blocking)
     try {
       await GoogleSheetsService.addBillToSheet(sheetsData)
-      console.log('Bill data successfully added to Google Sheets')
+      console.log("Bill data successfully added to Google Sheets")
     } catch (sheetsError) {
-      console.error('Google Sheets integration failed:', sheetsError)
+      console.error("Google Sheets integration failed:", sheetsError)
       // Continue with bill creation even if sheets fails
     }
 

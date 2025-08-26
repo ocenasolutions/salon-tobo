@@ -23,12 +23,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const userId = decoded.userId
 
     const {
-      packageIds,
+      services,
       clientName,
       customerMobile,
       attendantBy,
       productSales = [],
-      inventoryProductSales = [], // Add inventory product sales handling
+      inventoryProductSales = [],
       expenditures = [],
       upiAmount,
       cardAmount,
@@ -36,16 +36,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       paymentMethod,
     } = await request.json()
 
-    // Validation
-    if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
-      return NextResponse.json({ error: "At least one package must be selected" }, { status: 400 })
+    if (!services || !Array.isArray(services) || services.length === 0) {
+      return NextResponse.json({ error: "At least one service must be selected" }, { status: 400 })
     }
 
     const db = await getDatabase()
     const packagesCollection = db.collection<Package>("packages")
     const billsCollection = db.collection<Bill>("bills")
 
-    // Check if bill exists and belongs to user
     const existingBill = await billsCollection.findOne({
       _id: new ObjectId(params.id),
       userId: new ObjectId(userId),
@@ -57,7 +55,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const billCreationTime = new Date(existingBill.createdAt).getTime()
     const currentTime = new Date().getTime()
-    const fifteenMinutesInMs = 15 * 60 * 1000 // 15 minutes in milliseconds
+    const fifteenMinutesInMs = 15 * 60 * 1000
 
     const isWithinEditWindow = currentTime - billCreationTime <= fifteenMinutesInMs
     if (!isWithinEditWindow) {
@@ -67,24 +65,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
-    // Fetch selected packages
-    const packages = await packagesCollection
-      .find({
-        _id: { $in: packageIds.map((id: string) => new ObjectId(id)) },
-        userId: new ObjectId(userId),
-      })
-      .toArray()
-
-    if (packages.length !== packageIds.length) {
-      return NextResponse.json({ error: "Some packages not found" }, { status: 400 })
-    }
-
-    // Create updated bill items
-    const billItems: BillItem[] = packages.map((pkg) => ({
-      packageId: pkg._id!,
-      packageName: pkg.name,
-      packagePrice: pkg.price,
-      packageType: pkg.type,
+    const billItems: BillItem[] = services.map((service: any) => ({
+      packageId: service.packageId,
+      packageName: service.packageName,
+      packagePrice: service.price,
+      packageType: `${service.gender}-${service.serviceLevel}`,
+      gender: service.gender,
+      serviceLevel: service.serviceLevel,
     }))
 
     const servicesTotal = billItems.reduce((sum, item) => sum + item.packagePrice, 0)
@@ -122,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
           attendantBy: attendantBy || "",
           productSales: productSales,
           productSale: productSalesTotal,
-          inventoryProductSales: inventoryProductSales, // Store inventory product sales
+          inventoryProductSales: inventoryProductSales,
           expenditures: expenditures,
           upiAmount: finalUpiAmount,
           cardAmount: finalCardAmount,

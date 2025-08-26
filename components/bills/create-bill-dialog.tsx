@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -22,6 +21,8 @@ import {
   Smartphone,
   User,
   Phone,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 
 interface InventoryItem {
@@ -52,7 +53,23 @@ interface PackageType {
   _id: string
   name: string
   description: string
-  type: string
+  menPricing?: {
+    basic?: number
+    advance?: number
+  }
+  womenPricing?: {
+    basic?: number
+    advance?: number
+  }
+  type?: string
+  price?: number
+}
+
+interface SelectedServiceItem {
+  packageId: string
+  packageName: string
+  gender: "men" | "women"
+  serviceLevel: "basic" | "advance"
   price: number
 }
 
@@ -64,7 +81,10 @@ interface CreateBillDialogProps {
 }
 
 export default function CreateBillDialog({ open, onOpenChange, packages, onSuccess }: CreateBillDialogProps) {
-  const [selectedPackages, setSelectedPackages] = useState<string[]>([])
+  const [selectedServices, setSelectedServices] = useState<SelectedServiceItem[]>([])
+  const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set())
+  const [genderFilter, setGenderFilter] = useState<"all" | "men" | "women">("all")
+  const [serviceLevelFilter, setServiceLevelFilter] = useState<"all" | "basic" | "advance">("all")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -158,10 +178,7 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
     if (!searchQuery.trim()) return packages
     const query = searchQuery.toLowerCase().trim()
     return packages.filter(
-      (pkg) =>
-        pkg.name.toLowerCase().includes(query) ||
-        pkg.description.toLowerCase().includes(query) ||
-        pkg.type.toLowerCase().includes(query),
+      (pkg) => pkg.name.toLowerCase().includes(query) || pkg.description.toLowerCase().includes(query),
     )
   }, [packages, searchQuery])
 
@@ -176,55 +193,45 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
     )
   }, [inventory, productSearchQuery])
 
-  const handlePackageToggle = (packageId: string) => {
-    setSelectedPackages((prev) =>
-      prev.includes(packageId) ? prev.filter((id) => id !== packageId) : [...prev, packageId],
-    )
-  }
-
-  const addProductSale = (item: InventoryItem) => {
-    const existingSale = productSales.find((sale) => sale.inventoryId === item._id)
-    if (existingSale) {
-      updateProductQuantity(item._id, existingSale.quantitySold + 1)
-    } else {
-      const newSale: ProductSale = {
-        inventoryId: item._id,
-        productName: item.name,
-        brandName: item.brandName,
-        quantitySold: 1,
-        pricePerUnit: item.pricePerUnit,
-        totalPrice: item.pricePerUnit,
+  const togglePackageExpansion = (packageId: string) => {
+    setExpandedPackages((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(packageId)) {
+        newSet.delete(packageId)
+      } else {
+        newSet.add(packageId)
       }
-      setProductSales((prev) => [...prev, newSale])
+      return newSet
+    })
+  }
+
+  const addServiceVariant = (pkg: PackageType, gender: "men" | "women", serviceLevel: "basic" | "advance") => {
+    const pricing = gender === "men" ? pkg.menPricing : pkg.womenPricing
+    const price = pricing?.[serviceLevel]
+
+    if (!price) return
+
+    const serviceItem: SelectedServiceItem = {
+      packageId: pkg._id,
+      packageName: pkg.name,
+      gender,
+      serviceLevel,
+      price,
+    }
+
+    setSelectedServices((prev) => [...prev, serviceItem])
+    if (error === "Please select at least one service") {
+      setError("")
     }
   }
 
-  const updateProductQuantity = (inventoryId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      setProductSales((prev) => prev.filter((sale) => sale.inventoryId !== inventoryId))
-      return
-    }
-
-    const item = inventory.find((item) => item._id === inventoryId)
-    if (!item || newQuantity > item.quantity) return
-
-    setProductSales((prev) =>
-      prev.map((sale) =>
-        sale.inventoryId === inventoryId
-          ? { ...sale, quantitySold: newQuantity, totalPrice: newQuantity * sale.pricePerUnit }
-          : sale,
-      ),
-    )
-  }
-
-  const removeProductSale = (inventoryId: string) => {
-    setProductSales((prev) => prev.filter((sale) => sale.inventoryId !== inventoryId))
+  const removeServiceVariant = (index: number) => {
+    setSelectedServices((prev) => prev.filter((_, i) => i !== index))
+    setError("")
   }
 
   const calculateServicesTotal = () => {
-    return packages
-      .filter((pkg) => selectedPackages.includes(pkg._id!.toString()))
-      .reduce((sum, pkg) => sum + pkg.price, 0)
+    return selectedServices.reduce((sum, service) => sum + service.price, 0)
   }
 
   const calculateProductSalesTotal = () => {
@@ -266,7 +273,10 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
   const handleSubmit = async () => {
     setError("")
 
-    if (selectedPackages.length === 0) {
+    console.log("[v0] Selected services count:", selectedServices.length)
+    console.log("[v0] Selected services:", selectedServices)
+
+    if (selectedServices.length === 0) {
       setError("Please select at least one service")
       return
     }
@@ -289,7 +299,12 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
       }
 
       const billData = {
-        packageIds: selectedPackages,
+        services: selectedServices.map((service) => ({
+          packageId: service.packageId,
+          gender: service.gender,
+          serviceLevel: service.serviceLevel,
+          price: service.price,
+        })),
         clientName: clientName.trim() || "Walk-in Customer",
         customerMobile: customerMobile.trim() || undefined,
         ...paymentData,
@@ -300,8 +315,8 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
         })),
         expenditures: expenditures.map((exp) => ({
           name: exp.name,
-          price: exp.price || 0, // Default to 0 for predefined expenses
-          amount: exp.price || 0, // API expects 'amount' field
+          price: exp.price || 0,
+          amount: exp.price || 0,
         })),
       }
 
@@ -325,7 +340,8 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
       console.log("[v0] Bill created successfully:", result)
 
       // Reset form
-      setSelectedPackages([])
+      setSelectedServices([])
+      setExpandedPackages(new Set())
       setSearchQuery("")
       setClientName("")
       setCustomerMobile("")
@@ -337,6 +353,8 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
       setExpenditureName("")
       setExpenditurePrice("")
       setSelectedExpenseCategory("")
+      setGenderFilter("all")
+      setServiceLevelFilter("all")
       onSuccess()
     } catch (err) {
       console.error("[v0] Error creating bill:", err)
@@ -357,6 +375,44 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
       default:
         return null
     }
+  }
+
+  const addProductSale = (item: InventoryItem) => {
+    const existingSale = productSales.find((sale) => sale.inventoryId === item._id)
+    if (existingSale) {
+      updateProductQuantity(item._id, existingSale.quantitySold + 1)
+    } else {
+      setProductSales((prev) => [
+        ...prev,
+        {
+          inventoryId: item._id,
+          productName: item.name,
+          brandName: item.brandName,
+          quantitySold: 1,
+          pricePerUnit: item.pricePerUnit,
+          totalPrice: item.pricePerUnit,
+        },
+      ])
+    }
+  }
+
+  const removeProductSale = (inventoryId: string) => {
+    setProductSales((prev) => prev.filter((sale) => sale.inventoryId !== inventoryId))
+  }
+
+  const updateProductQuantity = (inventoryId: string, newQuantity: number) => {
+    setProductSales((prev) =>
+      prev.map((sale) => {
+        if (sale.inventoryId === inventoryId) {
+          return {
+            ...sale,
+            quantitySold: newQuantity,
+            totalPrice: newQuantity * sale.pricePerUnit,
+          }
+        }
+        return sale
+      }),
+    )
   }
 
   return (
@@ -487,8 +543,37 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-blue-700">Services</h3>
                   <Badge variant="outline" className="bg-blue-50">
-                    {selectedPackages.length} selected
+                    {selectedServices.length} selected
                   </Badge>
+                </div>
+
+                <div className="flex gap-2">
+                  <Select
+                    value={genderFilter}
+                    onValueChange={(value: "all" | "men" | "women") => setGenderFilter(value)}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Genders</SelectItem>
+                      <SelectItem value="men">Men</SelectItem>
+                      <SelectItem value="women">Women</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={serviceLevelFilter}
+                    onValueChange={(value: "all" | "basic" | "advance") => setServiceLevelFilter(value)}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Levels</SelectItem>
+                      <SelectItem value="basic">Basic</SelectItem>
+                      <SelectItem value="advance">Advance</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="relative">
@@ -503,31 +588,153 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
                 </div>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {filteredPackages.map((pkg) => (
-                    <div
-                      key={pkg._id}
-                      className="flex items-center p-3 border rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                      onClick={() => handlePackageToggle(pkg._id)}
-                    >
-                      <Checkbox
-                        checked={selectedPackages.includes(pkg._id)}
-                        onChange={() => handlePackageToggle(pkg._id)}
-                        disabled={loading}
-                        className="mr-3"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{pkg.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{pkg.description}</div>
+                  {filteredPackages.map((pkg) => {
+                    const isExpanded = expandedPackages.has(pkg._id)
+                    const hasOptions =
+                      pkg.menPricing?.basic ||
+                      pkg.menPricing?.advance ||
+                      pkg.womenPricing?.basic ||
+                      pkg.womenPricing?.advance
+
+                    return (
+                      <div key={pkg._id} className="border rounded-lg overflow-hidden">
+                        {/* Package Header */}
+                        <div
+                          className="flex items-center p-3 hover:bg-blue-50 transition-colors cursor-pointer"
+                          onClick={() => togglePackageExpansion(pkg._id)}
+                        >
+                          {hasOptions ? (
+                            isExpanded ? (
+                              <ChevronDown className="h-4 w-4 mr-2" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 mr-2" />
+                            )
+                          ) : (
+                            <div className="w-6 mr-2" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{pkg.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{pkg.description}</div>
+                          </div>
+                          {/* Legacy price display for packages without gender pricing */}
+                          {!hasOptions && pkg.price && (
+                            <div className="text-right">
+                              <div className="font-semibold text-blue-600">₹{pkg.price}</div>
+                              <Badge variant="secondary" className="text-xs">
+                                {pkg.type}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {isExpanded && hasOptions && (
+                          <div className="border-t bg-gray-50 p-3 space-y-2">
+                            {/* Men's Options */}
+                            {pkg.menPricing && (genderFilter === "all" || genderFilter === "men") && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-blue-600 mb-1">Men's Services</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {pkg.menPricing.basic &&
+                                    (serviceLevelFilter === "all" || serviceLevelFilter === "basic") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          addServiceVariant(pkg, "men", "basic")
+                                        }}
+                                        className="text-xs h-8"
+                                      >
+                                        Basic ₹{pkg.menPricing.basic}
+                                      </Button>
+                                    )}
+                                  {pkg.menPricing.advance &&
+                                    (serviceLevelFilter === "all" || serviceLevelFilter === "advance") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          addServiceVariant(pkg, "men", "advance")
+                                        }}
+                                        className="text-xs h-8"
+                                      >
+                                        Advance ₹{pkg.menPricing.advance}
+                                      </Button>
+                                    )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Women's Options */}
+                            {pkg.womenPricing && (genderFilter === "all" || genderFilter === "women") && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-pink-600 mb-1">Women's Services</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {pkg.womenPricing.basic &&
+                                    (serviceLevelFilter === "all" || serviceLevelFilter === "basic") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          addServiceVariant(pkg, "women", "basic")
+                                        }}
+                                        className="text-xs h-8"
+                                      >
+                                        Basic ₹{pkg.womenPricing.basic}
+                                      </Button>
+                                    )}
+                                  {pkg.womenPricing.advance &&
+                                    (serviceLevelFilter === "all" || serviceLevelFilter === "advance") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          addServiceVariant(pkg, "women", "advance")
+                                        }}
+                                        className="text-xs h-8"
+                                      >
+                                        Advance ₹{pkg.womenPricing.advance}
+                                      </Button>
+                                    )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-blue-600">₹{pkg.price}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          {pkg.type}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
+
+                {selectedServices.length > 0 && (
+                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg">
+                    <div className="text-sm font-medium text-blue-700">Selected Services:</div>
+                    {selectedServices.map((service, index) => (
+                      <div key={index} className="flex justify-between items-center text-xs bg-white p-2 rounded">
+                        <div>
+                          <span className="font-medium">{service.packageName}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({service.gender} - {service.serviceLevel})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">₹{service.price}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeServiceVariant(index)}
+                            className="h-4 w-4 p-0 text-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Products Column */}
@@ -762,7 +969,7 @@ export default function CreateBillDialog({ open, onOpenChange, packages, onSucce
               </Button>
               <Button
                 type="submit"
-                disabled={loading || selectedPackages.length === 0 || !attendantBy.trim()}
+                disabled={loading || selectedServices.length === 0 || !attendantBy.trim()}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 onClick={handleSubmit}
               >

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, PackageIcon, Edit, Trash2, Search, Filter } from "lucide-react"
+import { Plus, PackageIcon, Edit, Trash2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
 import type { Package } from "@/lib/models/Package"
 import CreatePackageDialog from "@/components/packages/create-package-dialog"
 import EditPackageDialog from "@/components/packages/edit-package-dialog"
@@ -19,10 +19,11 @@ export default function PackagesPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingPackage, setEditingPackage] = useState<Package | null>(null)
   const [deletingPackage, setDeletingPackage] = useState<Package | null>(null)
+  const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set())
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [priceFilter, setPriceFilter] = useState("all")
-  const [typeFilter, setTypeFilter] = useState("all")
+  const [genderFilter, setGenderFilter] = useState("all")
+  const [levelFilter, setLevelFilter] = useState("all")
   const [sortBy, setSortBy] = useState("name")
 
   const fetchPackages = async () => {
@@ -64,36 +65,40 @@ export default function PackagesPage() {
     setDeletingPackage(null)
   }
 
+  const togglePackageExpansion = (packageId: string) => {
+    setExpandedPackages((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(packageId)) {
+        newSet.delete(packageId)
+      } else {
+        newSet.add(packageId)
+      }
+      return newSet
+    })
+  }
+
   const filteredAndSortedPackages = useMemo(() => {
     const filtered = packages.filter((pkg) => {
-      // Search by name
       const matchesSearch = pkg.name.toLowerCase().includes(searchTerm.toLowerCase())
-
-      // Filter by type
-      const matchesType = typeFilter === "all" || pkg.type.toLowerCase() === typeFilter.toLowerCase()
-
-      // Filter by price range
-      let matchesPrice = true
-      if (priceFilter === "under50") {
-        matchesPrice = pkg.price < 50
-      } else if (priceFilter === "50to100") {
-        matchesPrice = pkg.price >= 50 && pkg.price <= 100
-      } else if (priceFilter === "over100") {
-        matchesPrice = pkg.price > 100
+      let matchesGender = true
+      if (genderFilter === "men") {
+        matchesGender = !!pkg.menPricing
+      } else if (genderFilter === "women") {
+        matchesGender = !!pkg.womenPricing
       }
-
-      return matchesSearch && matchesType && matchesPrice
+      let matchesLevel = true
+      if (levelFilter === "basic") {
+        matchesLevel = !!(pkg.menPricing?.basic || pkg.womenPricing?.basic)
+      } else if (levelFilter === "advance") {
+        matchesLevel = !!(pkg.menPricing?.advance || pkg.womenPricing?.advance)
+      }
+      return matchesSearch && matchesGender && matchesLevel
     })
 
-    // Sort packages
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name)
-        case "price-low":
-          return a.price - b.price
-        case "price-high":
-          return b.price - a.price
         case "date-new":
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         case "date-old":
@@ -104,7 +109,7 @@ export default function PackagesPage() {
     })
 
     return filtered
-  }, [packages, searchTerm, priceFilter, typeFilter, sortBy])
+  }, [packages, searchTerm, genderFilter, levelFilter, sortBy])
 
   if (loading) {
     return (
@@ -122,9 +127,9 @@ export default function PackagesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
+            <h1 className="text-3xl font-serif font-bold">Service Packages</h1>
             <p className="text-muted-foreground">Manage your salon service offerings</p>
           </div>
           <Button onClick={() => setShowCreateDialog(true)} size="lg" className="gap-2 self-start sm:self-auto">
@@ -142,7 +147,6 @@ export default function PackagesPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Search Input */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -153,52 +157,45 @@ export default function PackagesPage() {
                 />
               </div>
 
-              {/* Type Filter */}
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <Select value={genderFilter} onValueChange={setGenderFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Filter by type" />
+                  <SelectValue placeholder="Filter by gender" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="all">All Genders</SelectItem>
+                  <SelectItem value="men">Men</SelectItem>
+                  <SelectItem value="women">Women</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={levelFilter} onValueChange={setLevelFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
                   <SelectItem value="basic">Basic</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
+                  <SelectItem value="advance">Advance</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Price Range Filter */}
-              <Select value={priceFilter} onValueChange={setPriceFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by price" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Prices</SelectItem>
-                  <SelectItem value="under50">Under ₹50</SelectItem>
-                  <SelectItem value="50to100">₹50 - ₹100</SelectItem>
-                  <SelectItem value="over100">Over ₹100</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Sort Options */}
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger>
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="name">Name (A-Z)</SelectItem>
-                  <SelectItem value="price-low">Price (Low to High)</SelectItem>
-                  <SelectItem value="price-high">Price (High to Low)</SelectItem>
                   <SelectItem value="date-new">Newest First</SelectItem>
                   <SelectItem value="date-old">Oldest First</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Clear Filters */}
               <Button
                 variant="outline"
                 onClick={() => {
                   setSearchTerm("")
-                  setPriceFilter("all")
-                  setTypeFilter("all")
+                  setGenderFilter("all")
+                  setLevelFilter("all")
                   setSortBy("name")
                 }}
                 className="w-full"
@@ -207,14 +204,12 @@ export default function PackagesPage() {
               </Button>
             </div>
 
-            {/* Results Count */}
             <div className="mt-4 text-sm text-muted-foreground">
               Showing {filteredAndSortedPackages.length} of {packages.length} packages
             </div>
           </CardContent>
         </Card>
 
-        {/* Packages Grid */}
         {filteredAndSortedPackages.length === 0 ? (
           <Card className="border-border/40">
             <CardContent className="flex flex-col items-center justify-center py-16">
@@ -239,8 +234,8 @@ export default function PackagesPage() {
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("")
-                    setPriceFilter("all")
-                    setTypeFilter("all")
+                    setGenderFilter("all")
+                    setLevelFilter("all")
                     setSortBy("name")
                   }}
                 >
@@ -251,47 +246,109 @@ export default function PackagesPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAndSortedPackages.map((pkg) => (
-              <Card key={pkg._id?.toString()} className="border-border/40 hover:shadow-lg transition-all duration-300">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-xl font-serif mb-2">{pkg.name}</CardTitle>
-                      <Badge variant={pkg.type === "Premium" ? "default" : "secondary"} className="mb-2">
-                        {pkg.type}
-                      </Badge>
+            {filteredAndSortedPackages.map((pkg) => {
+              const packageId = pkg._id?.toString() || ""
+              const isExpanded = expandedPackages.has(packageId)
+
+              return (
+                <Card key={packageId} className="border-border/40 hover:shadow-lg transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-xl font-serif mb-2">{pkg.name}</CardTitle>
+                        <div className="flex gap-2 mb-2">
+                          {pkg.menPricing && <Badge variant="secondary">Men</Badge>}
+                          {pkg.womenPricing && <Badge variant="secondary">Women</Badge>}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => togglePackageExpansion(packageId)}
+                          className="h-8 w-8 p-0"
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingPackage(pkg)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeletingPackage(pkg)}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setEditingPackage(pkg)} className="h-8 w-8 p-0">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeletingPackage(pkg)}
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="mb-4 leading-relaxed">{pkg.description}</CardDescription>
+
+                    {isExpanded && (
+                      <div className="space-y-3 mb-4 p-3 bg-muted/50 rounded-lg">
+                        {pkg.menPricing && (
+                          <div>
+                            <h4 className="font-medium text-sm mb-2">Men's Pricing:</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              {pkg.menPricing.basic && (
+                                <div className="flex justify-between">
+                                  <span>Basic:</span>
+                                  <span className="font-medium">₹{pkg.menPricing.basic}</span>
+                                </div>
+                              )}
+                              {pkg.menPricing.advance && (
+                                <div className="flex justify-between">
+                                  <span>Advance:</span>
+                                  <span className="font-medium">₹{pkg.menPricing.advance}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {pkg.womenPricing && (
+                          <div>
+                            <h4 className="font-medium text-sm mb-2">Women's Pricing:</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              {pkg.womenPricing.basic && (
+                                <div className="flex justify-between">
+                                  <span>Basic:</span>
+                                  <span className="font-medium">₹{pkg.womenPricing.basic}</span>
+                                </div>
+                              )}
+                              {pkg.womenPricing.advance && (
+                                <div className="flex justify-between">
+                                  <span>Advance:</span>
+                                  <span className="font-medium">₹{pkg.womenPricing.advance}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-sm text-muted-foreground">Click to view pricing details</span>
+                      <span className="text-sm text-muted-foreground">
+                        Created {new Date(pkg.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="mb-4 leading-relaxed">{pkg.description}</CardDescription>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <span className="text-3xl font-serif font-bold text-primary">₹{pkg.price}</span>
-                    <span className="text-sm text-muted-foreground">
-                      Created {new Date(pkg.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Dialogs */}
       <CreatePackageDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
