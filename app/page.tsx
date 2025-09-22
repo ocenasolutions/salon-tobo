@@ -330,14 +330,14 @@ export default function LandingPage() {
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-purple-400 transition-colors">
+                  <Link href="/privacy" className="hover:text-purple-400 transition-colors">
                     Privacy Policy
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-purple-400 transition-colors">
+                  <Link href="/terms" className="hover:text-purple-400 transition-colors">
                     Terms of Service
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
