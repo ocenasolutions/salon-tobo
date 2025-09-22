@@ -339,6 +339,11 @@ export default function LandingPage() {
                     Terms of Service
                   </Link>
                 </li>
+                <li>
+                  <Link href="/delete-account" className="hover:text-red-400 transition-colors text-red-300">
+                    Delete Account
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>

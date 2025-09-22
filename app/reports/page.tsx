@@ -1,328 +1,358 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
-import { Calendar, TrendingUp, DollarSign, Package } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Calendar, Users, BarChart3, Star, ArrowRight, Package2 } from "lucide-react"
 import Link from "next/link"
-import DashboardLayout from "@/components/dashboard-layout"
+import Image from "next/image"
+import HeroSection from "@/components/hero-section"
 
-interface ReportsData {
-  period: string
-  totalSales: number
-  totalBills: number
-  packageTypeDistribution: Array<{
-    name: string
-    value: number
-    percentage: string
-  }>
-  topPackagesDistribution: Array<{
-    name: string
-    value: number
-    count: number
-    percentage: string
-  }>
-  salesTrend: Array<{
-    date: string
-    sales: number
-    formattedDate: string
-  }>
-  dateRange: {
-    start: string
-    end: string
-  }
-}
-
-const COLORS = ["#8b5cf6", "#a855f7", "#c084fc", "#d8b4fe", "#e9d5ff", "#f3e8ff", "#faf5ff", "#581c87"]
-
-const PERIOD_LABELS = {
-  yesterday: "Yesterday",
-  lastWeek: "Last Week",
-  lastMonth: "Last Month",
-  lastYear: "Last Year",
-}
-
-export default function ReportsPage() {
-  const [reportsData, setReportsData] = useState<ReportsData | null>(null)
-  const [selectedPeriod, setSelectedPeriod] = useState<keyof typeof PERIOD_LABELS>("yesterday")
-  const [loading, setLoading] = useState(true)
-
-  const fetchReports = async (period: string) => {
-    setLoading(true)
-    try {
-      const token = localStorage.getItem("auth-token")
-      const response = await fetch(`/api/reports/sales?period=${period}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setReportsData(data)
-      }
-    } catch (error) {
-      console.error("Error fetching reports:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchReports(selectedPeriod)
-  }, [selectedPeriod])
-
-  const handlePeriodChange = (period: keyof typeof PERIOD_LABELS) => {
-    setSelectedPeriod(period)
-  }
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-background border border-border/40 rounded-lg p-3 shadow-lg">
-          <p className="font-medium">{`${payload[0].payload.name}`}</p>
-          <p className="text-primary">{`Revenue: $${payload[0].value.toFixed(2)}`}</p>
-          <p className="text-muted-foreground">{`${payload[0].payload.percentage}% of total`}</p>
-          {payload[0].payload.count && <p className="text-muted-foreground">{`Count: ${payload[0].payload.count}`}</p>}
-        </div>
-      )
-    }
-    return null
-  }
-
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading reports...</p>
+function Header() {
+  return (
+    <header className="border-b border-white/20 backdrop-blur-md bg-white/80 sticky top-0 z-50 shadow-sm">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Image
+              src="/HUSN.png"
+              alt="HUSN Logo"
+              width={44}
+              height={44}
+              className="rounded-full object-cover shadow-lg ring-2 ring-purple-200"
+              priority
+            />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full shadow-sm"></div>
+          </div>
+          <div>
+            <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              HUSN
+            </span>
+            <p className="text-xs text-slate-500 font-medium hidden sm:block">Beauty Management</p>
           </div>
         </div>
-      </DashboardLayout>
-    )
-  }
+        <nav className="hidden md:flex items-center gap-8">
+          <a href="#features" className="text-slate-600 hover:text-purple-600 transition-colors font-medium">
+            Features
+          </a>
+          <a href="#testimonials" className="text-slate-600 hover:text-purple-600 transition-colors font-medium">
+            Testimonials
+          </a>
+          <a href="#contact" className="text-slate-600 hover:text-purple-600 transition-colors font-medium">
+            Contact
+          </a>
+          <Link href="/auth">
+            <Button
+              size="sm"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg"
+            >
+              Get Started
+            </Button>
+          </Link>
+        </nav>
+        <div className="md:hidden">
+          <Link href="/auth">
+            <Button
+              size="sm"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+            >
+              Start
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function FeaturesSection() {
+  const features = [
+    {
+      icon: Calendar,
+      title: "Package Management",
+      description: "Create stunning service packages with flexible pricing for Basic and Premium offerings.",
+      gradient: "from-purple-500 to-pink-500",
+      bg: "from-white to-purple-50/50",
+    },
+    {
+      icon: Users,
+      title: "Smart Billing",
+      description: "Generate professional invoices, track payments, and maintain comprehensive billing history.",
+      gradient: "from-pink-500 to-rose-500",
+      bg: "from-white to-pink-50/50",
+    },
+    {
+      icon: BarChart3,
+      title: "Analytics & Insights",
+      description: "Track performance, analyze trends, and make data-driven decisions to grow your business.",
+      gradient: "from-indigo-500 to-blue-500",
+      bg: "from-white to-indigo-50/50",
+    },
+    {
+      icon: Package2,
+      title: "Inventory Control",
+      description: "Track products, manage expiry dates, and monitor payment status for all your inventory.",
+      gradient: "from-emerald-500 to-teal-500",
+      bg: "from-white to-emerald-50/50",
+    },
+  ]
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <p className="text-muted-foreground">Analyze your salon's performance with detailed insights</p>
+    <section id="features" className="py-20 bg-white/60 backdrop-blur-sm">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
+            Everything You Need to{" "}
+            <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Succeed</span>
+          </h2>
+          <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
+            Powerful, intuitive tools designed specifically for beauty professionals who want to focus on what they do
+            best
+          </p>
         </div>
 
-        {/* Period Filter */}
-        <Card className="border-border/40">
-          <CardHeader>
-            <CardTitle className="text-xl font-serif flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Time Period
-            </CardTitle>
-            <CardDescription>Select a time period to analyze your sales data</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-3">
-              {Object.entries(PERIOD_LABELS).map(([key, label]) => (
-                <Button
-                  key={key}
-                  variant={selectedPeriod === key ? "default" : "outline"}
-                  onClick={() => handlePeriodChange(key as keyof typeof PERIOD_LABELS)}
-                  className="bg-transparent"
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+          {features.map((feature, index) => (
+            <Card
+              key={index}
+              className={`border-0 shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 bg-gradient-to-br ${feature.bg} group`}
+            >
+              <CardContent className="p-8 text-center">
+                <div
+                  className={`w-16 h-16 bg-gradient-to-br ${feature.gradient} rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform shadow-lg`}
                 >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {reportsData && (
-          <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-border/40 hover:shadow-lg transition-all duration-300">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-serif font-bold text-primary">₹{reportsData.totalSales.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">{PERIOD_LABELS[selectedPeriod]} performance</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/40 hover:shadow-lg transition-all duration-300">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Bills</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-serif font-bold text-primary">{reportsData.totalBills}</div>
-                  <p className="text-xs text-muted-foreground">Invoices generated</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/40 hover:shadow-lg transition-all duration-300">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Average Bill</CardTitle>
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-serif font-bold text-primary">
-                    ₹
-                    {reportsData.totalBills > 0 ? (reportsData.totalSales / reportsData.totalBills).toFixed(2) : "0.00"}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Per transaction</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {reportsData.totalSales > 0 ? (
-              <>
-                {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Package Type Distribution */}
-                  <Card className="border-border/40">
-                    <CardHeader>
-                      <CardTitle className="text-xl font-serif">Sales by Package Type</CardTitle>
-                      <CardDescription>Revenue distribution between Basic and Premium packages</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={reportsData.packageTypeDistribution}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percentage }) => `${name} (${percentage}%)`}
-                              outerRadius={100}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {reportsData.packageTypeDistribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Top Packages */}
-                  <Card className="border-border/40">
-                    <CardHeader>
-                      <CardTitle className="text-xl font-serif">Top Performing Packages</CardTitle>
-                      <CardDescription>Revenue breakdown by individual service packages</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={reportsData.topPackagesDistribution}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ percentage }) => `${percentage}%`}
-                              outerRadius={100}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {reportsData.topPackagesDistribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <feature.icon className="h-8 w-8 text-white" />
                 </div>
-
-                {/* Sales Trend */}
-                {reportsData.salesTrend.length > 1 && (
-                  <Card className="border-border/40">
-                    <CardHeader>
-                      <CardTitle className="text-xl font-serif">Sales Trend</CardTitle>
-                      <CardDescription>Daily sales performance over the selected period</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={reportsData.salesTrend}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="formattedDate" />
-                            <YAxis />
-                            <Tooltip
-                              formatter={(value: number) => [`$${value.toFixed(2)}`, "Sales"]}
-                              labelFormatter={(label) => `Date: ${label}`}
-                            />
-                            <Bar dataKey="sales" fill={COLORS[0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Package Performance Table */}
-                <Card className="border-border/40">
-                  <CardHeader>
-                    <CardTitle className="text-xl font-serif">Package Performance Details</CardTitle>
-                    <CardDescription>Detailed breakdown of package sales and revenue</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {reportsData.topPackagesDistribution.map((pkg, index) => (
-                        <div
-                          key={index}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border/40 rounded-lg gap-4"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-4 h-4 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                            />
-                            <div>
-                              <h4 className="font-semibold">{pkg.name}</h4>
-                              <p className="text-sm text-muted-foreground">{pkg.count} sales</p>
-                            </div>
-                          </div>
-                          <div className="text-left sm:text-right">
-                            <div className="text-lg font-semibold text-primary">₹{pkg.value.toFixed(2)}</div>
-                            <Badge variant="outline">{pkg.percentage}%</Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            ) : (
-              <Card className="border-border/40">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <TrendingUp className="h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-2xl font-serif font-semibold mb-2">No Sales Data</h3>
-                  <p className="text-muted-foreground mb-6 text-center max-w-md">
-                    No sales found for {PERIOD_LABELS[selectedPeriod].toLowerCase()}. Try selecting a different time
-                    period or create some bills first.
-                  </p>
-                  <Link href="/bills">
-                    <Button>Create New Bill</Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
+                <h3 className="text-xl font-semibold mb-4 text-slate-800">{feature.title}</h3>
+                <p className="text-slate-600 leading-relaxed">{feature.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
-    </DashboardLayout>
+    </section>
+  )
+}
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-purple-50 to-indigo-50">
+      <Header />
+      <HeroSection />
+      <FeaturesSection />
+
+      <section id="testimonials" className="py-20 bg-gradient-to-br from-purple-50/50 to-pink-50/50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-800 mb-6">
+              Trusted by Beauty{" "}
+              <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Professionals
+              </span>
+            </h2>
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+              See how HUSN has transformed salons and spas across the country
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+              <CardContent className="p-8">
+                <div className="flex items-center gap-1 mb-6">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <p className="text-slate-600 mb-6 leading-relaxed italic">
+                  "HUSN completely transformed how we manage our salon. The package management system is intuitive and
+                  our billing is now seamless. Our clients love the professional invoices!"
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white font-semibold">MJ</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">Maria Johnson</p>
+                    <p className="text-sm text-slate-500">Luxe Hair Studio</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+              <CardContent className="p-8">
+                <div className="flex items-center gap-1 mb-6">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <p className="text-slate-600 mb-6 leading-relaxed italic">
+                  "The analytics dashboard gives us insights we never had before. We've increased our revenue by 30%
+                  since implementing HUSN. The ROI has been incredible!"
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white font-semibold">DK</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">David Kim</p>
+                    <p className="text-sm text-slate-500">Elite Beauty Lounge</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 md:col-span-2 lg:col-span-1">
+              <CardContent className="p-8">
+                <div className="flex items-center gap-1 mb-6">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <p className="text-slate-600 mb-6 leading-relaxed italic">
+                  "Professional, reliable, and exactly what our growing salon needed. The customer support is
+                  exceptional and the platform is so easy to use!"
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white font-semibold">SP</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">Sarah Parker</p>
+                    <p className="text-sm text-slate-500">Glamour Salon & Spa</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 relative overflow-hidden">
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent"></div>
+
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
+              Ready to Transform Your Salon?
+            </h2>
+            <p className="text-xl text-white/90 mb-10 leading-relaxed">
+              Join thousands of beauty professionals who have elevated their business with HUSN!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Link href="/auth">
+                <Button
+                  size="lg"
+                  className="text-xl px-8 py-6 bg-white text-purple-600 hover:bg-gray-50 shadow-xl group transform hover:scale-105 transition-all duration-200"
+                >
+                  Get Started
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer id="contact" className="bg-slate-900 text-white py-16">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+            <div className="lg:col-span-2">
+              <div className="flex items-center gap-3 mb-6">
+                <Image
+                  src="/HUSN.png"
+                  alt="HUSN Logo"
+                  width={44}
+                  height={44}
+                  className="rounded-full object-cover shadow-lg ring-2 ring-purple-400/30"
+                />
+                <div>
+                  <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    HUSN
+                  </span>
+                  <p className="text-xs text-slate-400">Beauty Management Platform</p>
+                </div>
+              </div>
+              <p className="text-slate-300 leading-relaxed max-w-md mb-6">
+                Empowering beauty professionals with cutting-edge management tools designed for growth, efficiency, and
+                exceptional client experiences.
+              </p>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer">
+                  <span className="text-sm font-bold">f</span>
+                </div>
+                <div className="w-10 h-10 bg-pink-600 rounded-full flex items-center justify-center hover:bg-pink-700 transition-colors cursor-pointer">
+                  <span className="text-sm font-bold">@</span>
+                </div>
+                <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors cursor-pointer">
+                  <span className="text-sm font-bold">in</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-6 text-lg">Product</h4>
+              <ul className="space-y-3 text-slate-300">
+                <li>
+                  <a href="#features" className="hover:text-purple-400 transition-colors">
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-purple-400 transition-colors">
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-purple-400 transition-colors">
+                    Demo
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-purple-400 transition-colors">
+                    API
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-6 text-lg">Support</h4>
+              <ul className="space-y-3 text-slate-300">
+                <li>
+                  <a href="#" className="hover:text-purple-400 transition-colors">
+                    Help Center
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-purple-400 transition-colors">
+                    Contact Us
+                  </a>
+                </li>
+                <li>
+                  <Link href="/privacy" className="hover:text-purple-400 transition-colors">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/terms" className="hover:text-purple-400 transition-colors">
+                    Terms of Service
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/delete-account" className="hover:text-red-400 transition-colors text-red-300">
+                    Delete Account
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-700 pt-8 text-center">
+            <p className="text-slate-400">&copy; 2024 HUSN Beauty Management Platform. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
   )
 }
